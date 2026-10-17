@@ -1,0 +1,4 @@
+# 统一换行符，避免 Windows 上提交后到处是 CRLF
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.png binary

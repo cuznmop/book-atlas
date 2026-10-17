@@ -1,0 +1,26 @@
+{
+  "name": "book-atlas",
+  "version": "1.0.0",
+  "description": "书中人 · Book Atlas —— 读书时随手记人物、关系、地点与结局，最后长成一张可聚类、可分期的关系拓扑图。零依赖、零构建、离线可用的纯静态前端。",
+  "homepage": "https://cuznmop.github.io/book-atlas/",
+  "license": "MIT",
+  "private": false,
+  "keywords": [
+    "book",
+    "character-graph",
+    "knowledge-graph",
+    "relationship-map",
+    "literature",
+    "visualization",
+    "force-directed-graph",
+    "vanilla-js",
+    "offline-first"
+  ],
+  "scripts": {
+    "start": "python -m http.server 8765 --bind 127.0.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cuznmop/book-atlas.git"
+  }
+}

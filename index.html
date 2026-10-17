@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>书中人 · Book Atlas — 阅读人物关系图谱</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%235aa2ff'/><text x='16' y='23' font-size='19' text-anchor='middle' fill='white'>书</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">书</span>
+    <div class="brand-text">
+      <strong>书中人 · Book Atlas</strong>
+      <small>读书即录 · 人物 · 关系 · 聚类拓扑</small>
+    </div>
+  </div>
+
+  <div class="topbar-mid">
+    <label class="field-inline">
+      <span>书目</span>
+      <select id="bookSelect" title="切换书目"></select>
+    </label>
+    <button class="btn" id="btnBookMeta" title="编辑书名 / 出版社 / ISBN">书目信息</button>
+    <button class="btn" id="btnNewBook" title="新建一本空白书目">新建书目</button>
+  </div>
+
+  <div class="topbar-right">
+    <button class="btn" id="btnLoadSamples" title="载入内置示例书目（红楼梦 / 三国演义 / 战争与和平 / 水浒传 / 基督山伯爵 / 哈利·波特 / 三体 / 明朝那些事儿 / 百年孤独 / 大师与玛格丽特）">载入示例</button>
+    <button class="btn" id="btnExportJson">导出 JSON</button>
+    <button class="btn" id="btnImportJson">导入 JSON</button>
+    <input type="file" id="fileImport" accept=".json,application/json" hidden>
+    <button class="btn btn-ghost" id="btnHelp" title="使用说明">?</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 左栏：快速录入 ============ -->
+  <aside class="panel panel-left" id="panelLeft">
+
+    <section class="card card-capture">
+      <h2 class="card-title">快速录入 <span class="hint">边读边记</span></h2>
+
+      <div class="cursor-row">
+        <label class="field">
+          <span>当前页码</span>
+          <input type="number" id="currentPage" min="1" step="1" value="1">
+        </label>
+        <button class="btn btn-mini" id="btnPageMinus" title="上一页">−</button>
+        <button class="btn btn-mini" id="btnPagePlus" title="下一页">＋</button>
+      </div>
+
+      <form id="quickAddForm" class="quick-add" autocomplete="off">
+        <input type="text" id="quickName" placeholder="人名（全名 / 小名 / 别名，回车即加）" required>
+        <div class="quick-add-row">
+          <label class="field field-tight">
+            <span>首次出现页</span>
+            <input type="number" id="quickFirstPage" min="1" step="1" placeholder="默认当前页">
+          </label>
+          <button class="btn btn-primary" type="submit">添加人物</button>
+        </div>
+        <p class="tip" id="quickTip">已有人名会自动并入其别名，并在此页记一次出场。</p>
+        <label class="chk" style="margin-top:7px"><input type="checkbox" id="optSmartMerge" checked><span>疑似同名时询问合并</span></label>
+      </form>
+
+      <div class="recent" id="recentList"></div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">
+        人物 <span class="count" id="charCount">0</span>
+        <button class="btn btn-mini btn-ghost" id="btnToggleSort" title="切换排序">页序 ⇅</button>
+      </h2>
+      <input type="search" id="charSearch" class="search" placeholder="搜索人名 / 别名 / 身份 / 城市…">
+      <ul class="list" id="charList"></ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">快速连关系</h2>
+      <form id="quickRelForm" class="rel-form" autocomplete="off">
+        <div class="rel-row">
+          <select id="relFrom"></select>
+          <span class="rel-arrow">→</span>
+          <select id="relTo"></select>
+        </div>
+        <div class="rel-grid">
+          <label class="field field-tight">
+            <span>关系</span>
+            <input type="text" id="relType" list="relTypeList" placeholder="父子 / 主仆 / 结义…">
+            <datalist id="relTypeList"></datalist>
+          </label>
+          <label class="field field-tight">
+            <span>类别</span>
+            <select id="relCategory"></select>
+          </label>
+        </div>
+        <div class="rel-grid">
+          <label class="field field-tight">
+            <span>起于页</span>
+            <input type="number" id="relSince" min="1" step="1" placeholder="当前页">
+          </label>
+          <label class="field field-tight">
+            <span>止于页</span>
+            <input type="number" id="relUntil" min="1" step="1" placeholder="留空=持续">
+          </label>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">添加关系</button>
+      </form>
+    </section>
+  </aside>
+
+  <!-- ============ 中栏：拓扑图 ============ -->
+  <section class="stage">
+    <div class="stage-toolbar">
+      <label class="field-inline">
+        <span>聚类方式</span>
+        <select id="clusterMode">
+          <option value="placeRoot">地点 · 归并（大观园）</option>
+          <option value="place">地点 · 细分（大观园·怡红院）</option>
+          <option value="location">城市</option>
+          <option value="country">国家 / 地区</option>
+          <option value="faction">阵营 · 随页码（缺失沿用）</option>
+          <option value="factionAtPage">阵营 · 严格时期（会空档）</option>
+          <option value="factionGroup">势力大类（家族 / 学院）</option>
+          <option value="firstPage">首次出场阶段</option>
+          <option value="group">自定义标签</option>
+          <option value="role">身份 / 阶层</option>
+          <option value="none">不聚类（自由力导）</option>
+        </select>
+      </label>
+
+      <div class="toolgroup">
+        <button class="btn btn-mini" id="btnRelayout" title="重新布局">重新布局</button>
+        <button class="btn btn-mini" id="btnFit" title="适应窗口">适应</button>
+        <button class="btn btn-mini" id="btnZoomIn">＋</button>
+        <button class="btn btn-mini" id="btnZoomOut">－</button>
+      </div>
+
+      <div class="toolgroup toggles">
+        <label class="chk"><input type="checkbox" id="optLabels" checked><span>关系标签</span></label>
+        <label class="chk"><input type="checkbox" id="optAliases"><span>别名</span></label>
+        <label class="chk"><input type="checkbox" id="optFilterByPage" checked><span>按页码过滤</span></label>
+        <label class="chk"><input type="checkbox" id="optHulls" checked><span>聚类轮廓</span></label>
+        <label class="chk"><input type="checkbox" id="optEnding"><span>结局标记</span></label>
+      </div>
+
+      <div class="toolgroup">
+        <button class="btn btn-mini" id="btnExportSvg">导出 SVG</button>
+        <button class="btn btn-mini" id="btnExportPng">导出 PNG</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap" id="canvasWrap">
+      <svg id="graph" xmlns="http://www.w3.org/2000/svg">
+        <defs id="graphDefs"></defs>
+        <g id="viewport">
+          <g id="layerHull"></g>
+          <g id="layerEdge"></g>
+          <g id="layerNode"></g>
+        </g>
+      </svg>
+      <div class="legend" id="legend"></div>
+      <div class="empty-hint" id="emptyHint">
+        <h3>先给这本书起个名字</h3>
+        <p>在「书目信息」里填上书名、作者、出版社、ISBN，然后回到左边开始录入。</p>
+        <p>也可以点右上角「载入示例」，直接看红楼梦 / 三国演义 / 战争与和平 / 水浒传 / 基督山伯爵 / 哈利·波特 / 三体 / 明朝那些事儿 / 百年孤独 / 大师与玛格丽特的完整图谱。</p>
+      </div>
+      <div class="tooltip" id="tooltip" hidden></div>
+    </div>
+
+    <div class="timeline">
+      <button class="btn btn-mini" id="btnTimelineFull">全书</button>
+      <input type="range" id="pageSlider" min="1" max="100" value="1">
+      <div class="timeline-read">
+        <span id="pageReadout">P1</span>
+        <small id="pageFilterReadout"></small>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 右栏：详情 / 编辑 ============ -->
+  <aside class="panel panel-right" id="panelRight">
+    <div id="detailEmpty" class="detail-empty">
+      <h2>人物档案</h2>
+      <p>点图中任意一个名字，或点左侧列表，这里会展开 TA 的全部信息：别名、所在城市、阵营、分期经历、最终结局，以及和谁有关系。</p>
+      <div class="stats" id="stats"></div>
+      <div class="detail-actions">
+        <button class="btn btn-block" id="btnResetData">清空本书数据</button>
+      </div>
+    </div>
+    <div id="detailBody" hidden></div>
+  </aside>
+</main>
+
+<!-- ============ 书目信息弹窗 ============ -->
+<div class="modal" id="bookModal" hidden>
+  <div class="modal-card">
+    <header class="modal-head">
+      <h2>书目信息</h2>
+      <button class="btn btn-ghost" id="btnCloseBookModal">✕</button>
+    </header>
+    <div class="modal-body">
+      <div class="grid-2">
+        <label class="field"><span>书名 *</span><input type="text" id="metaTitle" placeholder="红楼梦"></label>
+        <label class="field"><span>作者</span><input type="text" id="metaAuthor" placeholder="曹雪芹"></label>
+        <label class="field"><span>出版社</span><input type="text" id="metaPublisher" placeholder="人民文学出版社"></label>
+        <label class="field"><span>ISBN</span><input type="text" id="metaIsbn" placeholder="978-7-02-000220-7"></label>
+        <label class="field"><span>版次 / 丛书</span><input type="text" id="metaEdition" placeholder="中国古典文学读本丛书"></label>
+        <label class="field"><span>出版年</span><input type="text" id="metaYear" placeholder="1996"></label>
+        <label class="field"><span>总页数</span><input type="number" id="metaTotalPages" min="1" step="1" placeholder="1606"></label>
+        <label class="field"><span>备注</span><input type="text" id="metaNote" placeholder="阅读版本说明…"></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="btnDeleteBook">删除本书</button>
+        <span class="spacer"></span>
+        <button class="btn btn-primary" id="btnSaveBook">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 帮助 ============ -->
+<div class="modal" id="helpModal" hidden>
+  <div class="modal-card modal-wide">
+    <header class="modal-head">
+      <h2>怎么用</h2>
+      <button class="btn btn-ghost" id="btnCloseHelp">✕</button>
+    </header>
+    <div class="modal-body help-body">
+      <ol>
+        <li><b>建书目</b>：右上「书目信息」填书名、作者、出版社、ISBN、总页数。可以建多本，用左上角的「书目」下拉切换。</li>
+        <li><b>边读边记</b>：左栏「当前页码」跟着你读到哪儿走；下面输入框敲人名回车，人和出场页一起进库。首次出现页留空就按当前页算。</li>
+        <li><b>别名</b>：同一个人再敲一次别的名字（小名、字、号、绰号、原文名），会自动并成同一个人的别名，并记一次出场。战争与和平这种一堆译名的书特别好用。</li>
+        <li><b>关系</b>：左栏「快速连关系」选两个人、写关系词、选类别。带起止页的关系会随时间轴出现或消失（例：吕布—董卓是义父子，董卓死后即止）。</li>
+        <li><b>经历与结局</b>：右栏给每个人写分期经历（第几页到第几页做了什么）和最终结局。</li>
+        <li><b>聚类</b>：中栏切换聚类方式，同府邸 / 同城 / 同国 / 同阵营的人会自动抱团，不同地区分开摆放。选「时期阵营」再拖时间轴，可以看三国这种阵营随页码变动的关系网。</li>
+        <li><b>存盘</b>：数据自动存在浏览器本地（localStorage），换电脑用「导出 JSON / 导入 JSON」搬运。</li>
+      </ol>
+      <p class="tip">小技巧：滚轮缩放，拖背景平移，拖人物可以手动钉住位置；点人物看档案，双击人物聚焦它的邻域。</p>
+    </div>
+  </div>
+</div>
+
+<script src="data/samples.js"></script>
+<script src="data/book-shuihu.js"></script>
+<script src="data/book-montecristo.js"></script>
+<script src="data/book-harrypotter.js"></script>
+<script src="data/book-santi.js"></script>
+<script src="data/book-mingchao.js"></script>
+<script src="data/book-solitude.js"></script>
+<script src="data/book-master.js"></script>
+<script src="js/store.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
